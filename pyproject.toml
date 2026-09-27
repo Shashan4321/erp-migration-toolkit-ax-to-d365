@@ -1,0 +1,20 @@
+[project]
+name = "erp-migration-toolkit"
+version = "0.1.0"
+description = "Profiling, mapping, transformation and reconciliation framework for Dynamics AX -> D365 Business Central data migration (synthetic data)."
+requires-python = ">=3.10"
+dependencies = ["pandas>=2.1", "numpy>=1.26", "pyyaml>=6", "faker>=25", "tabulate>=0.9"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6", "pre-commit>=3"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
