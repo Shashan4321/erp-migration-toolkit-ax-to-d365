@@ -1,0 +1,104 @@
+{
+  "passed": 14,
+  "total": 14,
+  "checks": [
+    {
+      "entity": "customer",
+      "check": "row accounting (loaded + rejected)",
+      "source": "606",
+      "target": "600 + 6",
+      "passed": true
+    },
+    {
+      "entity": "customer",
+      "check": "key checksum (MD5)",
+      "source": "db9df32af6be",
+      "target": "db9df32af6be",
+      "passed": true
+    },
+    {
+      "entity": "vendor",
+      "check": "row accounting (loaded + rejected)",
+      "source": "150",
+      "target": "150 + 0",
+      "passed": true
+    },
+    {
+      "entity": "vendor",
+      "check": "key checksum (MD5)",
+      "source": "1676fa8c583e",
+      "target": "1676fa8c583e",
+      "passed": true
+    },
+    {
+      "entity": "item",
+      "check": "row accounting (loaded + rejected)",
+      "source": "400",
+      "target": "400 + 0",
+      "passed": true
+    },
+    {
+      "entity": "item",
+      "check": "key checksum (MD5)",
+      "source": "189294f40201",
+      "target": "189294f40201",
+      "passed": true
+    },
+    {
+      "entity": "open_invoice",
+      "check": "row accounting (loaded + rejected)",
+      "source": "1,800",
+      "target": "1,796 + 4",
+      "passed": true
+    },
+    {
+      "entity": "open_invoice",
+      "check": "key checksum (MD5)",
+      "source": "06a2c328c86c",
+      "target": "06a2c328c86c",
+      "passed": true
+    },
+    {
+      "entity": "gl_opening_balance",
+      "check": "row accounting (loaded + rejected)",
+      "source": "39",
+      "target": "39 + 0",
+      "passed": true
+    },
+    {
+      "entity": "open_invoice",
+      "check": "amount total AED (loaded + rejected)",
+      "source": "70,678,365.87",
+      "target": "70,678,365.87 + 0.00",
+      "passed": true
+    },
+    {
+      "entity": "open_invoice",
+      "check": "amount total LCY (loaded + rejected)",
+      "source": "220,319,651.49",
+      "target": "220,049,115.44 + 270,536.05",
+      "passed": true
+    },
+    {
+      "entity": "open_invoice",
+      "check": "amount total USD (loaded + rejected)",
+      "source": "61,480,730.78",
+      "target": "61,480,730.78 + 0.00",
+      "passed": true
+    },
+    {
+      "entity": "gl_opening_balance",
+      "check": "per-account totals match",
+      "source": "13 accounts",
+      "target": "13 match",
+      "passed": true
+    },
+    {
+      "entity": "gl_opening_balance",
+      "check": "trial balance nets to zero",
+      "source": "0.00",
+      "target": "0.00",
+      "passed": true
+    }
+  ]
+}
