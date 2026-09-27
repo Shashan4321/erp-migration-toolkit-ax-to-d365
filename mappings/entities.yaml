@@ -1,0 +1,71 @@
+# Field-mapping specification: Dynamics AX 2012 -> Dynamics 365 Business Central.
+# One block per entity. Each target field lists its source column and the
+# transformation rules applied in order (see src/erpmig/rules.py).
+# Target field names follow Business Central's standard tables / configuration packages.
+
+customer:
+  source: CUSTTABLE
+  target: Customer              # BC table 18
+  key: {source: ACCOUNTNUM, target: "No."}
+  dedupe_on: ["No."]
+  fields:
+    "No.":                     {from: ACCOUNTNUM, rules: [trim, upper]}
+    "Name":                    {from: NAME, rules: [trim, truncate_100]}
+    "Customer Posting Group":  {from: CUSTGROUP, rules: [trim, upper, map_posting_group]}
+    "Currency Code":           {from: CURRENCY, rules: [trim, upper, lcy_blank]}
+    "E-Mail":                  {from: EMAIL, rules: [trim, lower, valid_email_or_blank]}
+    "City":                    {from: CITY, rules: [trim, truncate_30]}
+    "Credit Limit (LCY)":      {from: CREDITMAX, rules: [to_decimal]}
+    "Blocked":                 {from: BLOCKED, rules: [map_blocked]}
+  required: ["No.", "Name", "Customer Posting Group"]
+
+vendor:
+  source: VENDTABLE
+  target: Vendor                # BC table 23
+  key: {source: ACCOUNTNUM, target: "No."}
+  dedupe_on: ["No."]
+  fields:
+    "No.":                     {from: ACCOUNTNUM, rules: [trim, upper]}
+    "Name":                    {from: NAME, rules: [trim, truncate_100]}
+    "Vendor Posting Group":    {from: VENDGROUP, rules: [trim, upper]}
+    "Currency Code":           {from: CURRENCY, rules: [trim, upper, lcy_blank]}
+    "Payment Terms Code":      {from: PAYMTERMID, rules: [trim, upper]}
+  required: ["No.", "Name", "Vendor Posting Group"]
+
+item:
+  source: INVENTTABLE
+  target: Item                  # BC table 27
+  key: {source: ITEMID, target: "No."}
+  dedupe_on: ["No."]
+  fields:
+    "No.":                     {from: ITEMID, rules: [trim, upper]}
+    "Description":             {from: ITEMNAME, rules: [trim, truncate_100]}
+    "Item Category Code":      {from: ITEMGROUPID, rules: [trim, upper]}
+    "Base Unit of Measure":    {from: UNITID, rules: [trim, upper, default_pcs]}
+    "Unit Price":              {from: PRICE, rules: [to_decimal]}
+  required: ["No.", "Description", "Base Unit of Measure"]
+
+open_invoice:
+  source: CUSTTRANSOPEN
+  target: Cust. Ledger Entry opening journal   # posted via General Journal
+  key: {source: RECID, target: "Source RecId"}
+  fields:
+    "Source RecId":            {from: RECID}
+    "Customer No.":            {from: ACCOUNTNUM, rules: [trim, upper]}
+    "Document No.":            {from: INVOICE, rules: [trim]}
+    "Posting Date":            {from: TRANSDATE}
+    "Amount":                  {from: AMOUNTCUR, rules: [to_decimal]}
+    "Currency Code":           {from: CURRENCYCODE, rules: [trim, upper, lcy_blank]}
+  required: ["Customer No.", "Document No.", "Amount"]
+  foreign_keys:
+    "Customer No.": customer
+
+gl_opening_balance:
+  source: LEDGERBALANCE
+  target: G/L opening balance journal
+  key: {source: [ACCOUNTNUM, DEPARTMENT], target: ["G/L Account No.", "Department Code"]}
+  fields:
+    "G/L Account No.":         {from: ACCOUNTNUM, rules: [trim]}
+    "Department Code":         {from: DEPARTMENT, rules: [trim, upper]}
+    "Amount (LCY)":            {from: AMOUNTMST, rules: [to_decimal]}
+  required: ["G/L Account No.", "Amount (LCY)"]
