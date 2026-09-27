@@ -1,19 +1,20 @@
 # ERP Migration Toolkit: Dynamics AX → Dynamics 365 Business Central
 
-**A reusable, test-driven framework to profile, map, transform and *prove* an ERP data migration: every source record is accounted for and every rupee reconciles.**
+**A reusable, test-driven framework to profile, map, transform and *prove* an ERP data migration: every source record is accounted for and every rupee reconciles. After go-live, BC data lands in a Microsoft Fabric lakehouse and [AX-compatible views](#after-go-live-ax-compatible-reporting-on-microsoft-fabric) keep the old AX reports running.**
 
 [![CI](https://github.com/Shashan4321/erp-migration-toolkit-ax-to-d365/actions/workflows/ci.yml/badge.svg)](https://github.com/Shashan4321/erp-migration-toolkit-ax-to-d365/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![pandas](https://img.shields.io/badge/pandas-ETL-150458?logo=pandas&logoColor=white)
 ![Dynamics 365](https://img.shields.io/badge/Dynamics%20365-Business%20Central-0B53CE)
+![Microsoft Fabric](https://img.shields.io/badge/Microsoft%20Fabric-Lakehouse%20%7C%20SQL%20endpoint-117865)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 > **Business problem.** ERP migrations fail quietly: a few duplicate customers, orphaned invoices or a rounding difference in opening balances, and finance cannot close the first month on the new system. This toolkit makes the migration **auditable**: mapping lives in a reviewable spec, bad records are quarantined with a reason, and a reconciliation report gates go-live.
 
 | | |
 |---|---|
-| **Stack** | Python · pandas · YAML mapping specs · pytest · GitHub Actions |
-| **Skills shown** | ERP data migration · data profiling · data quality rules · source-to-target mapping · reconciliation & controls · runbooks · stakeholder sign-off |
+| **Stack** | Python · pandas · YAML mapping specs · Microsoft Fabric (Lakehouse, Delta, Spark notebook, SQL analytics endpoint) · T-SQL · DuckDB · sqlglot · pytest · GitHub Actions |
+| **Skills shown** | ERP data migration · data profiling · data quality rules · source-to-target mapping · reconciliation & controls · runbooks · stakeholder sign-off · post-go-live reporting continuity (BC → Fabric → AX-compatible views) |
 | **Data** | Synthetic AX-style extracts generated with Faker (see [Data & license](#data--license)) |
 
 ## How it works
@@ -81,11 +82,11 @@ open_invoice:
 git clone https://github.com/Shashan4321/erp-migration-toolkit-ax-to-d365.git
 cd erp-migration-toolkit-ax-to-d365
 pip install -r requirements-dev.txt
-make all          # generate -> profile -> migrate -> reconcile (exit 1 on any mismatch)
-make test         # 13 tests incl. a tamper test
+make all          # generate -> profile -> migrate -> reconcile -> BC export -> AX views (exit 1 on any mismatch)
+make test         # 22 tests incl. tamper, duplicate-mapping and unmapped-company tests
 ```
 
-Outputs: `data/target_bc/*.csv` (BC-ready), `data/rejects/*.csv`, `reports/profiling.md`, `reports/reconciliation.md`.
+Outputs: `data/target_bc/*.csv` (BC-ready), `data/rejects/*.csv`, `reports/profiling.md`, `reports/reconciliation.md`, `data/bc_export/deltas/` (Delta, for Fabric) and `reports/ax_views_reconciliation.md`.
 
 ## Project structure
 
@@ -96,10 +97,14 @@ Outputs: `data/target_bc/*.csv` (BC-ready), `data/rejects/*.csv`, `reports/profi
 │   ├── profile.py               # profiling report
 │   ├── rules.py                 # cleansing rules referenced by the spec
 │   ├── migrate.py               # transform + validate + quarantine
-│   └── reconcile.py             # controls + report; non-zero exit on failure
+│   ├── reconcile.py             # controls + report; non-zero exit on failure
+│   ├── bc_export.py             # after go-live: BC export in the bc2adls Delta layout
+│   └── ax_views.py              # runs sql/ax_compat locally (sqlglot -> DuckDB) + reconciliation
+├── sql/ax_compat/               # T-SQL views for the Fabric SQL endpoint: ax.CUSTTABLE, CUSTTRANS, ...
+├── fabric/                      # notebook that loads the Delta folders + DEPLOY.md
 ├── reports/                     # committed output of the last run
 ├── docs/runbook.md              # cut-over plan, sign-off criteria, rollback points
-├── tests/                       # pytest incl. tamper detection
+├── tests/                       # pytest incl. tamper, duplicate-mapping and unmapped-company tests
 └── .github/workflows/ci.yml     # runs the full migration and uploads the reports
 ```
 
@@ -107,9 +112,41 @@ Outputs: `data/target_bc/*.csv` (BC-ready), `data/rejects/*.csv`, `reports/profi
 
 [`docs/runbook.md`](docs/runbook.md) covers freeze → extract → load → reconcile → sign-off → hypercare, with rollback points and the go-live checklist finance signs.
 
+## After go-live: AX-compatible reporting on Microsoft Fabric
+
+> **Business problem.** The ERP moved to Business Central, but finance still runs dozens of reports and Excel models written against AX tables (`CUSTTRANS`, `DATAAREAID`, `VOUCHER`...). Rewriting all of them on day one is not realistic. Instead, BC data lands in a Fabric lakehouse and a thin layer of views gives it the old AX shape, so reports keep working while they are modernised one by one.
+
+```mermaid
+flowchart LR
+    BC[(Business Central<br/>2 companies + sandbox)] -->|bc2adls export<br/>Delta per table| F[Lakehouse Files<br/>deltas/Customer-18/<br/>deltas/CustLedgerEntry-21/ ...]
+    F -->|fabric/01_load_bc_export.ipynb<br/>+ change data feed| T[Lakehouse tables<br/>Customer_18, CustLedgerEntry_21,<br/>DetailedCustLedgEntry_379, ...]
+    M[(company_map<br/>BC company -> DATAAREAID)] --> V
+    T --> V[SQL analytics endpoint<br/>ax.CUSTTABLE · ax.CUSTTRANS ·<br/>ax.CUSTTRANSOPEN · ax.BANKACCOUNTTRANS ·<br/>ax.LEDGERTRANS]
+    T --> DQ[ax.DQ_UNMAPPED_COMPANIES]
+    V --> R[Legacy AX reports<br/>Power BI · Excel]
+```
+
+| AX view | Built from (BC table) | Notes |
+|---|---|---|
+| `ax.CUSTTABLE` | Customer (18) | `ACCOUNTNUM`, `NAME`, `CUSTGROUP`, `BLOCKED` mapped to AX 0/1/2 |
+| `ax.CUSTTRANS` | Cust. Ledger Entry (21) + Detailed Cust. Ledg. Entry (379) | Amounts are BC FlowFields, so `AMOUNTCUR` / `SETTLEAMOUNTCUR` are summed from detailed entries; branch and department as `DIMENSION`, `DIMENSION2_` |
+| `ax.CUSTTRANSOPEN` | `ax.CUSTTRANS` | Unsettled part of each transaction, for ageing |
+| `ax.BANKACCOUNTTRANS` | Bank Account Ledger Entry (271) | `RECONCILED` flag from the BC open flag |
+| `ax.LEDGERTRANS` | G/L Entry (17) | `AMOUNTMST`, `CREDITING` |
+| `ax.DQ_UNMAPPED_COMPANIES` | all of the above | Companies with no `company_map` row. Must be empty (apart from the known sandbox) before reports are trusted |
+
+**Design choices**
+
+* **Company codes are data, not code.** `DATAAREAID` comes from a `company_map` table instead of a hard-coded `CASE ... ELSE NULL`. Adding a company is one row, and an unmapped company is *reported* by the DQ view instead of silently producing rows with a NULL company.
+* **Same SQL everywhere.** The views are T-SQL for the Fabric SQL analytics endpoint. CI transpiles them with sqlglot and runs them on DuckDB over the same synthetic tables, so the logic is tested before anyone deploys it.
+* **Reconciled, like the migration.** [`reports/ax_views_reconciliation.md`](reports/ax_views_reconciliation.md): **10/10 checks pass**. View rows = source rows per company, open AR = sum of detailed entries, bank amounts match, the ledger nets to zero, no NULL company, and the sandbox company is the only one reported as unmapped. Tests also prove that a duplicated `company_map` row and a missing mapping are both caught.
+
+**Run it on Fabric:** [`fabric/DEPLOY.md`](fabric/DEPLOY.md) walks through a free trial workspace: upload `data/bc_export/deltas`, run the notebook, create the views, run [`sql/ax_compat/checks.sql`](sql/ax_compat/checks.sql). Screenshots will be added to `docs/img/fabric/`.
+
 ## Data & license
 
 * **Data:** 100% synthetic. AX table and column names follow Microsoft's public AX 2012 data dictionary; all values come from [Faker](https://faker.readthedocs.io) (seed 7). No employer or client data, schema, screenshots or code are used.
+* **BC export:** table and column naming follows the public bc2adls convention (`<Field>-<FieldId>`, `$Company`); field IDs are illustrative. Companies are invented (`Contoso Global Ltd.`, `Contoso India Pvt. Ltd.`, and Microsoft's demo name `CRONUS` for the sandbox), generated with seed 11.
 * **Code:** MIT License.
 
 ## Author
