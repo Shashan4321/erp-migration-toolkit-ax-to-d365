@@ -67,7 +67,7 @@ def run(source_dir: Path = ROOT / "data" / "source_ax", out: Path = ROOT / "repo
         lines += [f"## {csv.stem} ({len(df):,} rows)", "", prof.to_markdown(index=False), ""]
     lines[2:2] = ["## Issues found", ""] + [f"- {i}" for i in all_issues] + [""]
     path = out / "profiling.md"
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
     return path
 
 

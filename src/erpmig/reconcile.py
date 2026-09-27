@@ -173,7 +173,7 @@ def write_report(
         for (e, why), n in reasons.groupby(["entity", "reject_reason"]).size().items():
             lines.append(f"| {e} | `{why}` | {n} |")
     path = out_dir / "reconciliation.md"
-    path.write_text("\n".join(lines) + "\n")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     (out_dir / "reconciliation.json").write_text(
         json.dumps(
             {"passed": passed, "total": len(checks), "checks": [asdict(c) for c in checks]},
